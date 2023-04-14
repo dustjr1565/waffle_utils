@@ -8,3 +8,6 @@ class Format(enum.Flag):
     YOLO_SEGMENTATION = enum.auto()
 
     COCO_DETECTION = enum.auto()
+
+    HUGGINGFACE_CLASSIFICATION = enum.auto()
+    HUGGINGFACE_DETECTION = enum.auto()

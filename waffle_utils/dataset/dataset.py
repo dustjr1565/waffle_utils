@@ -1,11 +1,27 @@
 import logging
-import os
 import random
 import warnings
 from functools import cached_property
 from pathlib import Path
 from typing import Union
 
+from PIL import Image as PILImage
+
+from datasets import (
+    ClassLabel,
+)
+from datasets import Dataset as HFDataset
+from datasets import (
+    DatasetDict,
+    Features,
+)
+from datasets import Image as HFImage
+from datasets import (
+    Sequence,
+    Value,
+    load_dataset,
+    load_from_disk,
+)
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
@@ -789,5 +805,117 @@ class Dataset:
                     "unlabeled",
                     export_dir,
                 )
+
+            return str(export_dir)
+
+        elif export_format == Format.HUGGINGFACE_CLASSIFICATION:
+            features = Features(
+                {
+                    "image": Image(),
+                    "label": ClassLabel(names=self.classes),
+                }
+            )
+
+            def _export(images: list[Image]):
+                for image in images:
+                    yield {
+                        "image": image.file_name,
+                        "label": waffle_ds.classes[image.category_id - 1],
+                    }
+
+            dataset = {}
+            if train_image_ids:
+                dataset["train"] = HFDataset.from_generator(
+                    lambda: _export(self.get_images(train_image_ids)),
+                    features=features,
+                )
+            if val_image_ids:
+                dataset["val"] = HFDataset.from_generator(
+                    lambda: _export(self.get_images(val_image_ids)),
+                    features=features,
+                )
+            if test_image_ids:
+                dataset["test"] = HFDataset.from_generator(
+                    lambda: _export(self.get_images(test_image_ids)),
+                    features=features,
+                )
+
+            dataset = DatasetDict(dataset)
+            dataset.save_to_disk(export_dir)
+
+            return str(export_dir)
+
+        elif export_format == Format.HUGGINGFACE_DETECTION:
+            features = Features(
+                {
+                    "image": HFImage(),
+                    "image_id": Value("int32"),
+                    "width": Value("int32"),
+                    "height": Value("int32"),
+                    "objects": Sequence(
+                        {
+                            "id": Value("int32"),
+                            "area": Value("int32"),
+                            "category": ClassLabel(names=self.classes),
+                            "bbox": Sequence(Value("float32")),
+                        }
+                    ),
+                }
+            )
+
+            def _export(images: list[Image]):
+                for image in images:
+                    # objects
+                    annotations = self.get_annotations(image.image_id)
+                    objects = []
+                    for annotation in annotations:
+                        objects.append(
+                            {
+                                "id": annotation.annotation_id,
+                                "area": annotation.area,
+                                "category": self.classes[
+                                    annotation.category_id - 1
+                                ],
+                                "bbox": annotation.bbox,
+                            }
+                        )
+
+                    # image
+                    image_path = self.raw_image_dir / image.file_name
+                    pil_image = PILImage.open(image_path).convert("RGB")
+                    yield {
+                        "image": pil_image,
+                        "image_id": image.image_id,
+                        "width": image.width,
+                        "height": image.height,
+                        "objects": objects,
+                    }
+
+            dataset = {}
+            if train_image_ids:
+                dataset["train"] = HFDataset.from_generator(
+                    lambda: _export(self.get_images(train_image_ids)),
+                    features=features,
+                )
+            if val_image_ids:
+                dataset["val"] = HFDataset.from_generator(
+                    lambda: _export(self.get_images(val_image_ids)),
+                    features=features,
+                )
+            if test_image_ids:
+                dataset["test"] = HFDataset.from_generator(
+                    lambda: _export(self.get_images(test_image_ids)),
+                    features=features,
+                )
+            if unlabeled_image_ids:
+                dataset["unlabeled"] = HFDataset.from_generator(
+                    lambda: _export(
+                        self.get_images(unlabeled_image_ids, labeled=False)
+                    ),
+                    features=features,
+                )
+
+            dataset = DatasetDict(dataset)
+            dataset.save_to_disk(export_dir)
 
             return str(export_dir)
