@@ -280,8 +280,8 @@ class Dataset:
     def from_huggingface(
         cls,
         name: str,
-        dataset_dir: str,
         task: str,
+        dataset_dir: str,
         root_dir=None,
     ) -> "Dataset":
         """Import Dataset from huggingface datasets.
@@ -309,17 +309,55 @@ class Dataset:
         dataset = load_from_disk(dataset_dir)
         if isinstance(dataset, DatasetDict):
             is_splited = True
-        elif isinstance(dataset, Dataset):
+            raise NotImplementedError
+        elif isinstance(dataset, HFDataset):
             is_splited = False
         else:
             raise ValueError("dataset should be Dataset or DatasetDict")
 
-        # if get_task
-        # images
+        if task == "object_detection":
 
-        # annotations
+            for data in dataset:
+                image = Image(
+                    image_id=data["image_id"],
+                    file_name=f"{data['image_id']}.jpg",
+                    width=data["width"],
+                    height=data["height"],
+                )
+                ds.add_images([image])
 
-        # categories
+                annotation_ids = data["objects"]["id"]
+                areas = data["objects"]["area"]
+                category_ids = data["objects"]["category"]
+                bboxes = data["objects"]["bbox"]
+
+                for annotation_id, area, category_id, bbox in zip(
+                    annotation_ids, areas, category_ids, bboxes
+                ):
+                    annotation = Annotation(
+                        annotation_id=annotation_id,
+                        image_id=image.image_id,
+                        category_id=category_id + 1,
+                        area=area,
+                        bbox=bbox,
+                    )
+                    ds.add_annotations([annotation])
+
+            categories = dataset.features["objects"].feature["category"].names
+            for category_id, category_name in enumerate(categories):
+                category = Category(
+                    category_id=category_id + 1,
+                    supercategory="object",
+                    name=category_name,
+                )
+                ds.add_categories([category])
+
+        elif task == "classification":
+            raise NotImplementedError
+        else:
+            raise ValueError(
+                "task should be one of ['classification', 'object_detection']"
+            )
 
         return ds
 
