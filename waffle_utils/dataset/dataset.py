@@ -19,8 +19,6 @@ from datasets import Image as HFImage
 from datasets import (
     Sequence,
     Value,
-    load_dataset,
-    load_from_disk,
 )
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
@@ -811,16 +809,18 @@ class Dataset:
         elif export_format == Format.HUGGINGFACE_CLASSIFICATION:
             features = Features(
                 {
-                    "image": Image(),
-                    "label": ClassLabel(names=self.classes),
+                    "image": HFImage(),
+                    "label": ClassLabel(names=self.categories),
                 }
             )
 
             def _export(images: list[Image]):
                 for image in images:
+                    annotation = self.get_annotations(image.image_id)[0]
+                    image_path = self.raw_image_dir / image.file_name
                     yield {
-                        "image": image.file_name,
-                        "label": waffle_ds.classes[image.category_id - 1],
+                        "image": PILImage.open(image_path).convert("RGB"),
+                        "label": self.categories[annotation.category_id - 1],
                     }
 
             dataset = {}
@@ -856,7 +856,7 @@ class Dataset:
                         {
                             "id": Value("int32"),
                             "area": Value("int32"),
-                            "category": ClassLabel(names=self.classes),
+                            "category": ClassLabel(names=self.categories),
                             "bbox": Sequence(Value("float32")),
                         }
                     ),
@@ -873,7 +873,7 @@ class Dataset:
                             {
                                 "id": annotation.annotation_id,
                                 "area": annotation.area,
-                                "category": self.classes[
+                                "category": self.categories[
                                     annotation.category_id - 1
                                 ],
                                 "bbox": annotation.bbox,
