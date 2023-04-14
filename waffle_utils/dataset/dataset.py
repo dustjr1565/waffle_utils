@@ -23,6 +23,7 @@ from datasets import (
     load_from_disk,
 )
 from waffle_utils.file import io
+from waffle_utils.image.io import save_image
 from waffle_utils.utils import type_validator
 
 from .fields import Annotation, Category, Image
@@ -307,57 +308,96 @@ class Dataset:
         ds.initialize()
 
         dataset = load_from_disk(dataset_dir)
+
         if isinstance(dataset, DatasetDict):
             is_splited = True
-            raise NotImplementedError
         elif isinstance(dataset, HFDataset):
             is_splited = False
         else:
             raise ValueError("dataset should be Dataset or DatasetDict")
 
-        if task == "object_detection":
+        def _import(dataset: HFDataset, task: str):
+            if task == "object_detection":
+                for data in dataset:
+                    data["image"].save(
+                        f"{ds.raw_image_dir}/{data['image_id']}.jpg"
+                    )
+                    image = Image(
+                        image_id=data["image_id"],
+                        file_name=f"{data['image_id']}.jpg",
+                        width=data["width"],
+                        height=data["height"],
+                    )
+                    ds.add_images([image])
 
-            for data in dataset:
-                image = Image(
-                    image_id=data["image_id"],
-                    file_name=f"{data['image_id']}.jpg",
-                    width=data["width"],
-                    height=data["height"],
+                    annotation_ids = data["objects"]["id"]
+                    areas = data["objects"]["area"]
+                    category_ids = data["objects"]["category"]
+                    bboxes = data["objects"]["bbox"]
+
+                    for annotation_id, area, category_id, bbox in zip(
+                        annotation_ids, areas, category_ids, bboxes
+                    ):
+                        annotation = Annotation(
+                            annotation_id=annotation_id,
+                            image_id=image.image_id,
+                            category_id=category_id + 1,
+                            area=area,
+                            bbox=bbox,
+                        )
+                        ds.add_annotations([annotation])
+
+                categories = (
+                    dataset.features["objects"].feature["category"].names
                 )
-                ds.add_images([image])
-
-                annotation_ids = data["objects"]["id"]
-                areas = data["objects"]["area"]
-                category_ids = data["objects"]["category"]
-                bboxes = data["objects"]["bbox"]
-
-                for annotation_id, area, category_id, bbox in zip(
-                    annotation_ids, areas, category_ids, bboxes
-                ):
-                    annotation = Annotation(
-                        annotation_id=annotation_id,
-                        image_id=image.image_id,
+                for category_id, category_name in enumerate(categories):
+                    category = Category(
                         category_id=category_id + 1,
-                        area=area,
-                        bbox=bbox,
+                        supercategory="object",
+                        name=category_name,
+                    )
+                    ds.add_categories([category])
+
+            elif task == "classification":
+                for data in dataset:
+                    data["image"].save(
+                        f"{ds.raw_image_dir}/{data['image_id']}.jpg"
+                    )
+                    image = Image(
+                        image_id=data["image_id"],
+                        file_name=f"{data['image_id']}.jpg",
+                        width=data["width"],
+                        height=data["height"],
+                    )
+                    ds.add_images([image])
+
+                    annotation = Annotation(
+                        annotation_id=data["image_id"],
+                        image_id=image.image_id,
+                        category_id=data["label"] + 1,
                     )
                     ds.add_annotations([annotation])
 
-            categories = dataset.features["objects"].feature["category"].names
-            for category_id, category_name in enumerate(categories):
-                category = Category(
-                    category_id=category_id + 1,
-                    supercategory="object",
-                    name=category_name,
+                categories = dataset.features["label"].names
+                for category_id, category_name in enumerate(categories):
+                    category = Category(
+                        category_id=category_id + 1,
+                        supercategory="object",
+                        name=category_name,
+                    )
+                    ds.add_categories([category])
+            else:
+                raise ValueError(
+                    "task should be one of ['classification', 'object_detection']"
                 )
-                ds.add_categories([category])
 
-        elif task == "classification":
-            raise NotImplementedError
+        if is_splited:
+            for set_type, set in dataset.items():
+                image_ids = set["image_id"]
+                io.save_json(image_ids, ds.set_dir / f"{set_type}.json", True)
+                _import(set, task)
         else:
-            raise ValueError(
-                "task should be one of ['classification', 'object_detection']"
-            )
+            _import(dataset, task)
 
         return ds
 
@@ -897,6 +937,9 @@ class Dataset:
             features = Features(
                 {
                     "image": HFImage(),
+                    "image_id": Value("int32"),
+                    "width": Value("int32"),
+                    "height": Value("int32"),
                     "label": ClassLabel(names=self.categories),
                 }
             )
@@ -907,6 +950,9 @@ class Dataset:
                     image_path = self.raw_image_dir / image.file_name
                     yield {
                         "image": PILImage.open(image_path).convert("RGB"),
+                        "image_id": image.image_id,
+                        "width": image.width,
+                        "height": image.height,
                         "label": self.categories[annotation.category_id - 1],
                     }
 
