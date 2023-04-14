@@ -88,6 +88,9 @@ def test_export(data_root_dir, dataset_name):
     run(
         f"python -m waffle_utils.run export --name {dataset_name} --root-dir {data_root_dir} --export-format coco_detection"
     )
+    run(
+        f"python -m waffle_utils.run export --name {dataset_name} --root-dir {data_root_dir} --export-format huggingface_detection"
+    )
 
 
 # Define fixtures and tests for video-related functions

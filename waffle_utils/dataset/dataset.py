@@ -7,6 +7,7 @@ from typing import Union
 
 from PIL import Image as PILImage
 
+# import huggingface's dataset library
 from datasets import (
     ClassLabel,
 )
@@ -19,6 +20,7 @@ from datasets import Image as HFImage
 from datasets import (
     Sequence,
     Value,
+    load_from_disk,
 )
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
@@ -271,6 +273,53 @@ class Dataset:
 
         # copy raw images
         io.copy_files_to_directory(coco_root_dir, ds.raw_image_dir)
+
+        return ds
+
+    @classmethod
+    def from_huggingface(
+        cls,
+        name: str,
+        dataset_dir: str,
+        task: str,
+        root_dir=None,
+    ) -> "Dataset":
+        """Import Dataset from huggingface datasets.
+
+        Args:
+            name (str): Dataset name.
+            dataset_dir (str): Hugging Face dataset directory.
+            task (str): Task name. Task must be one of ["classification", "object_detection"]
+            root_dir (str, optional): Dataset root directory. Defaults to None.
+
+        Raises:
+            FileExistsError: if dataset name already exists
+            ValueError: if dataset is not Dataset or DatasetDict
+
+        Returns:
+            Dataset: Dataset Class
+        """
+        ds = cls(name, root_dir)
+        if ds.initialized():
+            raise FileExistsError(
+                f"{ds.dataset_dir} already exists. try another name."
+            )
+        ds.initialize()
+
+        dataset = load_from_disk(dataset_dir)
+        if isinstance(dataset, DatasetDict):
+            is_splited = True
+        elif isinstance(dataset, Dataset):
+            is_splited = False
+        else:
+            raise ValueError("dataset should be Dataset or DatasetDict")
+
+        # if get_task
+        # images
+
+        # annotations
+
+        # categories
 
         return ds
 
