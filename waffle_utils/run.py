@@ -6,13 +6,21 @@ from waffle_utils.dataset import Dataset
 from waffle_utils.dataset.format import Format
 from waffle_utils.file.io import unzip
 from waffle_utils.file.network import get_file_from_url
-from waffle_utils.image import DEFAULT_IMAGE_EXTENSION, SUPPORTED_IMAGE_EXTENSION
-from waffle_utils.video import SUPPORTED_VIDEO_EXTENSION
-from waffle_utils.video.tools import DEFAULT_FRAME_RATE, create_video, extract_frames
-
+from waffle_utils.image import (
+    DEFAULT_IMAGE_EXTENSION,
+    SUPPORTED_IMAGE_EXTENSION,
+)
 from waffle_utils.log import initialize_logger
+from waffle_utils.video import SUPPORTED_VIDEO_EXTENSION
+from waffle_utils.video.tools import (
+    DEFAULT_FRAME_RATE,
+    create_video,
+    extract_frames,
+)
 
-initialize_logger("logs/cli.log", root_level=logging.DEBUG, console_level=logging.DEBUG)
+initialize_logger(
+    "logs/cli.log", root_level=logging.DEBUG, console_level=logging.DEBUG
+)
 logger = logging.getLogger(__name__)
 
 app = typer.Typer()
@@ -51,7 +59,9 @@ def _unzip(
     create_directory: bool = True,
 ):
     unzip(file_path, output_dir, create_directory=create_directory)
-    logger.debug(f"Extracting {file_path} under {output_dir} has been completed.")
+    logger.debug(
+        f"Extracting {file_path} under {output_dir} has been completed."
+    )
 
 
 @app.command(name="from_coco")
@@ -68,6 +78,23 @@ def _from_coco(
         coco_file=coco_file,
         coco_root_dir=coco_root_dir,
         root_dir=root_dir,
+    )
+
+
+@app.command(name="from_huggingface")
+def _from_huggingface(
+    name: str = typer.Option(..., help=name_docs),
+    task: str = typer.Option(..., help="classification or detection"),
+    root_dir: str = typer.Option(None, help=root_dir_docs),
+    dataset_dir: str = typer.Option(..., help="huggingface dataset directory"),
+):
+    """Import Dataset from HuggingFace Format"""
+
+    Dataset.from_huggingface(
+        name,
+        task=task,
+        root_dir=root_dir,
+        dataset_dir=dataset_dir,
     )
 
 
@@ -109,7 +136,9 @@ input_frames_dir_docs = "Directory to input frame image files"
 output_frames_dir_docs = "Directory to output frame image files"
 output_video_path_docs = f"Path for output video file. Example: path/to/video.mp4. Supported extensions: {SUPPORTED_VIDEO_EXTENSION}"
 frame_rate_docs = "Frame rate"
-output_image_extension_docs = f"Output image extension. {SUPPORTED_IMAGE_EXTENSION}"
+output_image_extension_docs = (
+    f"Output image extension. {SUPPORTED_IMAGE_EXTENSION}"
+)
 verbose_docs = "Verbose"
 
 
@@ -125,7 +154,9 @@ def _extract_frames(
 ):
     """Extract Frames from a Video File"""
 
-    extract_frames(input_path, output_dir, frame_rate, output_image_extension, verbose)
+    extract_frames(
+        input_path, output_dir, frame_rate, output_image_extension, verbose
+    )
 
 
 @app.command(name="create_video")

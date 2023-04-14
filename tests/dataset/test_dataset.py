@@ -189,7 +189,7 @@ def test_dataset_export_coco(dataset: Dataset):
     assert Path(exported_dataset_dir).exists()
 
 
-def test_dataset_export_huggingfacae(dataset: Dataset):
+def test_dataset_export_huggingface(dataset: Dataset):
     dataset.split(0.8)
 
     exported_dataset_dir = dataset.export(Format.HUGGINGFACE_DETECTION)
