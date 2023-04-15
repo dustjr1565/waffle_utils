@@ -23,7 +23,6 @@ from datasets import (
     load_from_disk,
 )
 from waffle_utils.file import io
-from waffle_utils.image.io import save_image
 from waffle_utils.utils import type_validator
 
 from .fields import Annotation, Category, Image
